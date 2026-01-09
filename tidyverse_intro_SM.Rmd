@@ -1,0 +1,389 @@
+---
+title: "SM tidyverse intro notebook"
+output: html_notebook
+---
+
+Import library
+```{r}
+library(tidyverse)
+```
+
+You can call features from libraries without referencing library name 
+But it can be confusing when you have two libraries with a verb with the same name 
+
+## Introduction to the Tidyverse: An Exploration of UN Data 
+In this project, you'll be redoing the UN Data project using the tidyverse libraries. You have been provided three csv files, gdp_per_capita.csv, life_expectancy.csv, and continents.csv.
+
+Create a new R Notebook to complete this exercise.
+
+1.	Using the `read_csv()` function, read the GDP dataset into your notebook as a tibble called `gdp_df`. After reading it in, inspect the first 10 rows and then inspect the last 10 rows. 
+
+
+```{r}
+gdp_df <- read_csv("../data/gdp_per_capita.csv")
+
+gdp_df |> 
+  head(10)
+
+gdp_df |> 
+  tail(10)
+
+```
+
+ 2. Drop the 'Value Footnotes' column, and rename the remaining columns to 'Country', 'Year', and 'GDP_Per_Capita'.
+ 
+```{r}
+gdp_df_clean <- gdp_df |> 
+  select(!`Value Footnotes`) |> 
+  rename(Country = 1, Year = 2, GDP_per_Capita=3)
+
+gdp_df_clean
+```
+ 
+
+3. Which years are represented in this dataset? How many observations are there per year? Make a plot to view the number of observations per year.
+
+```{r}
+unique_year <- gdp_df_clean |>
+  count(Year, sort=TRUE)
+unique_year
+
+ggplot(
+  data= unique_year,
+  mapping = aes(x=Year, y=n)
+  ) + 
+  geom_point() +
+  geom_smooth(method='lm') + 
+  labs(
+    title= 'number of GDP observations for all countries each year',
+    x='year',
+    y='Number of observations')
+
+
+```
+
+
+4. How many countries are represented in this dataset? Which countries have the fewest observations?
+
+```{r}
+gdp_df_clean |>
+  count(Country, sort= TRUE) |>
+  slice_min(n, n=1)
+```
+
+
+5. Create a new tibble by subsetting `gdp_df` to just the year 2021. Call this new tibble `gdp_2021`.
+
+```{r}
+gdp_2021 <- gdp_df_clean |>
+  filter(Year == 2021)
+
+gdp_2021
+```
+
+
+6. Use `summary()` to find the summary statistics for GDP per capita in 2021. 
+
+```{r}
+gdp_2021 |>
+  summary(GDP_per_Capita)
+```
+
+
+7. Create a histogram of GDP Per Capita numbers for 2021 (you may wish to adjust the number of bins for your histogram).
+
+```{r}
+ggplot(
+  data=gdp_2021,
+  aes(x=GDP_per_Capita)) +
+    geom_histogram(bins=50) +
+  labs( title='Distribution of GDP per capita observations in 2021',
+        y='Number of observations', 
+        x='GDP per capita')
+)
+```
+
+
+8. Find the top 5 counties and bottom 5 countries by GDP per capita in 2021.
+
+```{r}
+top_5_countries= gdp_2021 |> 
+  arrange(desc(GDP_per_Capita)) |>
+  slice_head(n=5)
+
+bottom_5_countries= gdp_2021 |> 
+  arrange((GDP_per_Capita)) |>
+  slice_head(n=5)
+
+top_5_country_list= top_5_countries$Country
+print("Top 5 countries are: ")
+print(top_5_country_list)
+
+bottom_5_country_list= bottom_5_countries$Country
+print("Bottom 5 coutnries are: ")
+print(bottom_5_country_list)
+
+
+```
+
+
+9. Now, return to the full dataset, `gdp_df`. Pivot the data for 1990 and 2021 (using `pivot_wider()` function) so that each row corresponds to a country, each column corresponds to a year, and the values in the table give the GDP_Per_Capita amount. Drop any rows that are missing values for either 1990 or 2021. Save the result to a tibble named `gdp_pivoted`.
+
+```{r}
+gdp_pivoted<- gdp_df_clean |> 
+  pivot_wider(names_from= Year, values_from=GDP_per_Capita) |>
+  drop_na()
+
+gdp_pivoted
+```
+
+10. Create a new column in `gdp_pivoted` named `Percent_Change`. This column should contain the percent change in GDP_Per_Capita from 1990 to 2021. Hint: Percent change is calculated as 100*(New Value - Old Value) / Old Value.
+
+```{r}
+gdp_pivoted <- gdp_pivoted |>
+  mutate(Percent_Change = (100*(`2021` - `1990`) / `1990`)) |>
+  relocate(Percent_Change, .before=`2021`)
+
+gdp_pivoted
+
+## figure out how to round this variable since round() isnt working
+```
+
+
+11. How many countries experienced a negative percent change in GDP per capita from 1990 to 2021?
+
+```{r}
+gdp_pivoted |> 
+  filter(Percent_Change <0) |> 
+  nrow()
+
+```
+12. Which country had the highest % change in GDP per capita? Which country had the second highest % change? Create a line plot showing these country's GDP per capita for all years for which you have data. Put both line charts on the same plot."
+
+```{r}
+gdp_pivoted |> arrange(desc(Percent_Change)) |> slice_max(Percent_Change)
+```
+```{r}
+gdp_pc_order<- gdp_pivoted |> arrange(desc(Percent_Change)) |> slice_max(Percent_Change, n=2)
+gdp_pc_order
+```
+```{r}
+##get a list of the country names 
+top_country_list<- gdp_pc_order|>pull(Country)
+top_country_list
+
+##Filter the original dataframe for those countries 
+top_2_country_df<- gdp_df_clean |> 
+  filter(Country %in% top_country_list)
+
+#graph this new dataframe 
+
+ggplot(data=top_2_country_df, 
+       mapping = aes(x=Year, y=GDP_per_Capita, color=Country)) + 
+  geom_line() +
+  labs(title= 'GDP per capita over time in top 2 countries with greatest change in GDP', 
+       x='Year', 
+       y='GDP per capita')
+```
+
+
+13. Read in continents.csv contained in the `data` folder into a new tibble called `continents`. We will be using this tibble to add a new column to our dataset.
+
+```{r}
+
+cont_data<- read_csv('../data/continents.csv')
+cont_data
+```
+
+
+14. Merge gdp_df and continents. Keep only the countries that appear in both data frames. Save the result back to gdp_df.
+```{r}
+gdp_df<- inner_join(gdp_df_clean, cont_data, by='Country')  
+gdp_df
+```
+
+
+15. Determine the number of countries per continent. Create a bar chart showing this.
+```{r}
+count_per_cont <- cont_data |> 
+  group_by(Continent) |> 
+  summarize(count = n())
+
+count_per_cont
+
+##plot
+
+ggplot(data=count_per_cont, 
+       mapping= aes(x=Continent, y=count)) + 
+  geom_col() + 
+  labs(title= 'Number of countries per continent included in GDP dataset', 
+       y='Number of countries')
+
+```
+
+
+16. Create a boxplot showing GDP per capita in 2021 split out by continent. What do you notice?
+```{r}
+gdp_cont_2021<- gdp_df |> filter(Year == 2021)
+
+ggplot(data=gdp_cont_2021, 
+       aes(x=Continent, y=GDP_per_Capita)) + 
+  geom_boxplot() +
+  labs(title='GDP per capita in 2021', 
+       y='GDP per Capita')
+
+```
+
+17. Read life_expectancy.csv into a tibble named life_expectancy. Do not modify the csv file in order to read this data in. 
+```{r}
+life_expectancy <- read_csv('../data/life_expectancy.csv', skip=3) #skip 3 trows to make it cleaner
+
+#life_expectancy |> spec()
+
+```
+18. Drop the Country Code, Indicator Name, and Indicator Code columns. Then use `pivot_longer` to convert your data from wide to long. That is, instead of having one row per country and multiple colums per year, we want to have multiple rows per country and a single column for year. After melting, rename the columns to `Country`, `Year`, and `Life_Expectancy`.
+
+```{r}
+#drop the unwanted columns but selecting everything BUT those columns. Since they are all in a line, I dropped them using the range. 
+life_expectancy_clean <- life_expectancy |> select(!'Country Code':'Indicator Code')
+
+life_expectancy_clean<- life_expectancy_clean |> rename('Country' = `Country Name`)
+life_expectancy_clean <- life_expectancy_clean |> select(!'...69')
+
+life_expectancy_clean
+```
+
+```{r}
+le_pivot<- life_expectancy_clean |> 
+  pivot_longer(cols= `1960`:`2023`)
+
+le_pivot<- le_pivot |> rename(Year= name, life_expect = value)
+le_pivot
+```
+
+
+19. What was the first country with a life expectancy to exceed 80?
+```{r}
+le_pivot |> 
+  filter(life_expect > 80) |> 
+  arrange(Year) |> 
+  slice_min(Year, n=1)
+```
+
+20. Merge `gdp_df` and `life_expectancy`, keeping all countries and years that appear in both tibbles. Save the result to a new tibble named `gdp_le`. If you get any errors in doing this, read them carefully and correct them. Look at the first five rows of your new data frame to confirm it merged correctly. Also, check the last five rows to make sure the data is clean and as expected.
+```{r}
+gdp_df
+
+#first make sure years are numbers, since the merge was giving issues between the two datasets
+
+le_pivot<- le_pivot |>  
+  mutate(Year = as.numeric(Year))
+
+#now merge the two dataframes together
+gdp_le <- inner_join(gdp_df, 
+                     le_pivot, 
+                     by= c('Country', 'Year'))
+
+gdp_le |> head(5)
+gdp_le |>  tail(5)
+```
+21. Create a new tibble, named `gdp_le_2021` by extracting data for the year 2021 from `gdp_le`. How many countries have a life expectancy of at least 80 in 2021?
+
+```{r}
+
+gdp_le_2021 <- gdp_le |>
+  filter(Year == 2021)
+
+gdp_le_2021|>head()
+
+
+num_count_80 <- gdp_le_2021 |> 
+  filter(life_expect >= 80) |> 
+  count()
+
+print("Number of countries with a life expectancy of at least 80 in 2021 = ")
+print(num_count_80$n)
+
+num_count_80$n
+```
+22. Find the countries that had the top 3 largest GDP per capita figures for 2021. Create a plot showing the change in life expectancy over time for these three countries. This plot should be faceted so that each country is contained in its own figure.
+```{r}
+
+top_3_countries <- gdp_le_2021 |> 
+  arrange(desc(GDP_per_Capita)) |> 
+  slice_head(n = 3)
+
+top_3_names = top_3_countries$Country
+print(top_3_names)
+
+
+top_3_all_gdp <- gdp_le |> 
+  filter(Country == top_3_names)
+
+###Faceting=== x is Year, facet is by country, y is life expectancy 
+
+ggplot(top_3_all_gdp, 
+       aes(x=Year, y=life_expect)) + 
+  geom_line() + 
+  facet_wrap(~Country) +
+  labs(title="Life expectancy over time in the 3 countries with largest GDP per capita in 2021", 
+       x='Year', 
+       y='Life expectancy')
+```
+
+23. Create a scatter plot of Life Expectancy vs GDP per Capita for the year 2021. What do you notice?
+
+```{r}
+
+gdp_le_2021 
+
+ggplot(gdp_le_2021, 
+       aes(x=life_expect, 
+           y=GDP_per_Capita)) + 
+  geom_point() + 
+  labs(title="Correlation of life expecancy v GDP per capita in all countries in 2021", 
+      x="life expectancy", 
+      y="GDP per capita")
+
+```
+**OBSERVATION**: Life expectancy and GDP per capita in 2021 has a positive non-linear correlation 
+
+
+
+24. Find the correlation between Life Expectancy and GDP per Capita for the year 2021. What is the meaning of this number?
+
+```{r}
+
+corr_gdp_le_21 <- gdp_le_2021 |> 
+  drop_na() |>
+  summarize(correlation = cor(life_expect, GDP_per_Capita))
+corr_gdp_le_21$correlation
+
+
+```
+**Answer**: The correlation is 0.74, which is a positive correlation. The correlation is mild, since it is smaller than 1, but larger than 0.5. 
+
+
+25. Add a column to `gdp_le_2021` and calculate the logarithm of GDP per capita. Find the correlation between the log of GDP per capita and life expectancy. How does this compare to the calculation in the previous part? Look at a scatter plot to see if the result of this calculation makes sense.
+
+``` {r}
+
+gdp_le_2021 <- gdp_le_2021 |> 
+  mutate(log_gdp = log(GDP_per_Capita))
+
+gdp_le_2021 |> head()
+
+
+cor_log_gdp <- gdp_le_2021 |> drop_na() |> summarize(correlation = cor(life_expect, log_gdp))
+
+print(cor_log_gdp$correlation)
+
+ggplot(gdp_le_2021, 
+       aes(x=life_expect, y=log_gdp)) + 
+  geom_point()+
+  labs(title='Correlation of log GDP per capita and life expectancy in 2021', 
+       x='Life expectancy', 
+       y='GDP per capita (log)')
+
+```
+**Observation**: The scatterplot shows a stronger linear positive correlation between life expectancy and GDP per capita. This is also supported by the correlation coefficent being higher between log-GDP v life expectancy (0.84) compared to gdp v life expectancy (0.74). 
